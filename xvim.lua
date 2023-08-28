@@ -8,6 +8,9 @@ require("cluautils")
 local workspace_ext = "xcworkspace"
 local project_ext = "xcodeproj"
 local xvim_conf_file_name = "./xvim.json"
+---@TODO: let the user configure paths
+local build_dir_path = "./build"
+local build_logs_dir_path = "./build/logs/"
 local help_message = [[
 // This is a json file, it should be in the root folder of your project to help Xvim build and run it. Run Xvim Help for more detailed information about configuration of this file
 
@@ -68,6 +71,16 @@ function DefaultConfig()
 end
 
 ---@MARK - Private methods
+
+---@return string|osdate
+local function create_log_file_name()
+    return os.date("%H:%M_%d.%m.%Y")
+end
+
+---@param path string
+local function create_directory(path)
+    os.execute("mkdir " .. path)
+end
 
 local function is_build_settings(t)
     ---@type config
@@ -222,11 +235,30 @@ function CreateBuildCommand(config)
 end
 
 ---@param config config
-function Build(config)
-    FM.create_file("./build.log")
-    local build_command = "!" .. CreateBuildCommand(config) .. " > ./build.log"
+---@param executor fun(config: config)?
+---@param completion fun()?
+function Build(config, executor, completion)
+    if not FM.is_file_exists(build_dir_path) then
+        create_directory(build_dir_path)
+    end
 
-    vim.cmd(build_command)
+    if not FM.is_file_exists(build_logs_dir_path) then
+        create_directory(build_logs_dir_path)
+    end
+
+    local log_file_name = create_log_file_name()
+    local log_file_path = build_logs_dir_path .. log_file_name .. ".log"
+
+    executor = executor or function (_)
+        local build_command =  CreateBuildCommand(config) .. " > " .. log_file_path
+        os.execute(build_command)
+    end
+
+    executor(config)
+
+    if completion ~= nil then
+        completion()
+    end
 end
 
 ---@param config config
