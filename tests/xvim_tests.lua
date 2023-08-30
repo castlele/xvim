@@ -2,18 +2,19 @@ require("cluautils.tests.base_test_case")
 require("cluautils.file_manager")
 require("cluautils.table_utils")
 require("cluautils.json")
-require("xvim")
+require("lua.xvim.xvim")
+require("lua.xvim.models")
 
 ---@MARK - Constants
 
 local config_file_path = "./xvim.json"
 local project_file_path = "./xvim.xcodeproj"
-local workspace_file_path = "./xvim.xcworkspace"
 local build_dir_path = "./build"
 local build_logs_dir_path = "./build/logs/"
 
 ---@MARK - Helper methods
 
+---@TODO: create common module with helpers for tests
 local function create_directories(dirs)
     for _, dir in pairs(dirs) do
         os.execute("mkdir " .. dir)
@@ -30,19 +31,6 @@ local function create_files(files)
     for _, file in pairs(files) do
         FM.create_file(file)
     end
-end
-
----@param path string
----@param project_type ProjectType
----@return config
-local function get_config(path, project_type)
-    return {
-        project_path=path,
-        project_type=project_type,
-        configuration=ConfigurationType.DEBUG,
-        sdk="iphonesimulator16.4",
-        scheme="xvim",
-    }
 end
 
 ---@MARK - Tests
@@ -74,7 +62,7 @@ end
 function XvimTests:test_create_build_settings_with_no_config_file()
     delete_files({config_file_path, project_file_path})
     FM.create_file(project_file_path)
-    local default_config = Json.encode(DefaultConfig())
+    local default_config = Json.encode(Config)
 
     CreateBuildSettingsFileIfNeeded()
     local config_file = io.open(config_file_path)
@@ -129,13 +117,13 @@ function XvimTests:test_read_config_with_saved_config_and_comment_on_top()
         return [[
         //some random comment
 
-        ]] .. Json.encode(DefaultConfig())
+        ]] .. Json.encode(Config)
     end)
 
     local result = ReadConfig(config_file_path)
 
     delete_files({config_file_path})
-    return result ~= nil and table.is_equal(result, DefaultConfig())
+    return result ~= nil and table.is_equal(result, Config)
 end
 
 ---@MARK - EditConfig tests
@@ -160,7 +148,7 @@ end
 function XvimTests:test_get_build_settings_from_non_existing_file()
     delete_files({config_file_path})
 
-    local build_settings = GetBuildSettings()
+    local build_settings = ReadConfig(config_file_path)
 
     return build_settings == nil
 end
@@ -169,7 +157,7 @@ function XvimTests:test_get_build_settings_from_empty_file()
     delete_files({config_file_path})
     create_files({config_file_path})
 
-    local build_settings = GetBuildSettings()
+    local build_settings = ReadConfig(config_file_path)
 
     return build_settings == nil
 end
@@ -179,7 +167,7 @@ function XvimTests:test_get_build_settings_from_file_with_invalid_json()
         return '"string_field": "hello world"}' -- No start openning bracket '{'
     end)
 
-    local build_settings = GetBuildSettings()
+    local build_settings = ReadConfig(config_file_path)
 
     delete_files({config_file_path})
     return build_settings == nil
@@ -190,7 +178,7 @@ function XvimTests:test_get_build_settings_from_file_with_invalid_config()
         return '{"string_field": "hello world"}'
     end)
 
-    local build_settings = GetBuildSettings()
+    local build_settings = ReadConfig(config_file_path)
 
     delete_files({config_file_path})
     return build_settings == nil
@@ -208,83 +196,10 @@ function XvimTests:test_get_build_settings_from_file_with_valid_config()
         return Json.encode(config, {indent="    ", pretty=true})
     end)
 
-    local build_settings = GetBuildSettings()
+    local build_settings = ReadConfig(config_file_path)
 
     delete_files({config_file_path})
     return build_settings ~= nil and table.is_equal(build_settings, config)
-end
-
----@MARK - CreateBuildCommand
-
-function XvimTests:test_create_build_command_project()
-    --[[
-    -- xcodebuild -project xvim.xcodeproj -scheme xvim -configuration Debug -sdk iphonesimulator16.4
-    --]]
-    local expected_command = "xcodebuild -project " .. project_file_path .. " -configuration Debug -scheme xvim -sdk iphonesimulator16.4"
-    ---@type config
-    local config = get_config(project_file_path, ProjectType.PROJECT)
-
-    local command = CreateBuildCommand(config)
-
-    return command == expected_command
-end
-
----@MARK - Creation of build command tests
-
-function XvimTests:test_create_build_command_workspace()
-    --[[
-    -- xcodebuild -workspace xvim.xcworkspace -scheme xvim -configuration Debug -sdk iphonesimulator16.4
-    --]]
-    local expected_command = "xcodebuild -workspace " .. workspace_file_path ..  " -configuration Debug -scheme xvim -sdk iphonesimulator16.4"
-    ---@type config
-    local config = get_config(workspace_file_path, ProjectType.WORKSPACE)
-
-    local command = CreateBuildCommand(config)
-
-    return command == expected_command
-end
-
----@MARK - Build tests
-
-function XvimTests:test_run_build_first_time_creates_build_directory_with_build_log_file()
-    delete_files({build_dir_path, build_logs_dir_path})
-    local config = get_config(workspace_file_path, ProjectType.WORKSPACE)
-    local is_log_dir_exists = false
-    local is_build_dir_exists = false
-    local is_build_log_created = false
-    local completion = function (_)
-        local files = FM.get_dir_content({dir_path=build_logs_dir_path})
-        is_log_dir_exists = FM.is_file_exists(build_logs_dir_path)
-        is_build_dir_exists = FM.is_file_exists(build_dir_path)
-        is_build_log_created = #files >= 1
-
-        delete_files(table.concat_tables(files, {build_logs_dir_path, build_dir_path}))
-    end
-
-    Build(config, nil, completion)
-
-    return is_log_dir_exists and is_build_dir_exists and is_build_log_created
-end
-
-function XvimTests:test_run_build_command_creates_build_log_file_inside_build_directory()
-    local existing_log_file = build_logs_dir_path .. "20:58_28.08.2023.log"
-    create_directories({build_dir_path, build_logs_dir_path})
-    create_files({existing_log_file})
-    local config = get_config(workspace_file_path, ProjectType.WORKSPACE)
-    local is_old_log_exists = false
-    local is_new_log_created = false
-    local completion = function (_)
-        local files = FM.get_dir_content({dir_path=build_logs_dir_path})
-
-        is_old_log_exists = FM.is_file_exists(existing_log_file)
-        is_new_log_created = #files >= 2
-
-        delete_files(table.concat_tables(files, {build_logs_dir_path, build_dir_path}))
-    end
-
-    Build(config, nil, completion)
-
-    return is_old_log_exists and is_new_log_created
 end
 
 ---@MARK - Get logs files paths
