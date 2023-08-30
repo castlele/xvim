@@ -1,8 +1,9 @@
 require("xvim_vim_ui")
 require("xvim")
 
-local buildArg = 'Build'
-local runArg = 'Run'
+local build_arg = "Build"
+local run_arg = "Run"
+local show_logs = "ShowLogs"
 
 ---@MARK - Environment
 
@@ -13,13 +14,14 @@ end
 ---@type environment
 local vim_environment = {
     open_file = UI.open_file_in_split_window,
-    report_error = report_error
+    report_error = report_error,
+    show_logs = UI.show_logs_quick_fix_window,
 }
 
 ---@MARK - Command helpers
 
 local function completion(_, _, _)
-    return { buildArg, runArg }
+    return { build_arg, run_arg, show_logs }
 end
 
 local function xvim_wrapper(args)

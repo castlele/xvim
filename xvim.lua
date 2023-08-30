@@ -1,5 +1,6 @@
 require("cluautils.file_manager")
 require("cluautils.string_utils")
+require("cluautils.table_utils")
 require("cluautils.json")
 require("cluautils")
 
@@ -57,6 +58,7 @@ ConfigurationType = {
 ---@class environment
 ---@field open_file fun(file_path: string)
 ---@field report_error fun(error_message: string)
+---@field show_logs fun(file_paths: table)
 
 ---@return config
 function DefaultConfig()
@@ -261,6 +263,27 @@ function Build(config, executor, completion)
     end
 end
 
+---@return table
+function GetLogFilesPaths()
+    local dir = build_logs_dir_path
+
+    if dir:sub(#dir, #dir) == "/" then
+        dir = dir:sub(1, #dir - 1)
+    end
+
+    local all_files = FM.get_dir_content({dir_path=dir, max_depth=2})
+
+    return table.filter(all_files, function(path)
+        return path:find("%.log") ~= nil
+    end)
+end
+
+---@param environment environment
+function ShowLogs(environment)
+    local logs = GetLogFilesPaths()
+    environment.show_logs(logs)
+end
+
 ---@param config config
 function Run(config)
     print("Run")
@@ -308,5 +331,7 @@ function Xvim(cmd, environment)
         Build(settings)
     elseif cmd.args == "Run" then
         Run(settings)
+    elseif cmd.args == "ShowLogs" then
+        ShowLogs(environment)
     end
 end

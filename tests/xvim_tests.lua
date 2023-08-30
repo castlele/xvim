@@ -20,12 +20,6 @@ local function create_directories(dirs)
     end
 end
 
-local function delete_directories(dirs)
-    for _, dir in pairs(dirs) do
-        os.execute("rm -rf " .. dir)
-    end
-end
-
 local function delete_files(files)
     for _, file in pairs(files) do
         FM.delete_file(file)
@@ -260,7 +254,6 @@ function XvimTests:test_run_build_first_time_creates_build_directory_with_build_
     local is_build_log_created = false
     local completion = function (_)
         local files = FM.get_dir_content({dir_path=build_logs_dir_path})
-        print(vim.inspect(files))
         is_log_dir_exists = FM.is_file_exists(build_logs_dir_path)
         is_build_dir_exists = FM.is_file_exists(build_dir_path)
         is_build_log_created = #files >= 1
@@ -275,7 +268,7 @@ end
 
 function XvimTests:test_run_build_command_creates_build_log_file_inside_build_directory()
     local existing_log_file = build_logs_dir_path .. "20:58_28.08.2023.log"
-    create_directories({build_dir_path, build_logs_dir_path, })
+    create_directories({build_dir_path, build_logs_dir_path})
     create_files({existing_log_file})
     local config = get_config(workspace_file_path, ProjectType.WORKSPACE)
     local is_old_log_exists = false
@@ -292,6 +285,50 @@ function XvimTests:test_run_build_command_creates_build_log_file_inside_build_di
     Build(config, nil, completion)
 
     return is_old_log_exists and is_new_log_created
+end
+
+---@MARK - Get logs files paths
+
+function XvimTests:test_if_logs_directory_does_not_exists_returns_empty_table()
+    delete_files({build_logs_dir_path, build_dir_path})
+
+    local log_files = GetLogFilesPaths()
+
+    return #log_files == 0
+end
+
+function XvimTests:test_if_logs_directory_is_empty_returns_empty_table()
+    create_directories({build_dir_path, build_logs_dir_path})
+
+    local log_files = GetLogFilesPaths()
+
+    delete_files({build_logs_dir_path, build_dir_path})
+    return #log_files == 0
+end
+
+function XvimTests:test_returns_every_log_files()
+    local log_file_new = build_logs_dir_path .. "21:34_29.08.2023.log"
+    local log_file_old = build_logs_dir_path .. "21:34_29.08.20222.log"
+    create_directories({build_dir_path, build_logs_dir_path})
+    create_files({log_file_new, log_file_old})
+
+    local log_files = GetLogFilesPaths()
+
+    delete_files({log_file_new, log_file_old, build_logs_dir_path, build_dir_path})
+    return #log_files == 2
+end
+
+function XvimTests:test_if_log_directory_contains_other_files_returns_only_log_files()
+    local log_file_new = build_logs_dir_path .. "21:34_29.08.2023.log"
+    local log_file_old = build_logs_dir_path .. "21:34_29.08.20222.log"
+    local other_file = build_logs_dir_path .. "some_random_file.txt"
+    create_directories({build_dir_path, build_logs_dir_path})
+    create_files({log_file_new, log_file_old, other_file})
+
+    local log_files = GetLogFilesPaths()
+
+    delete_files({other_file, log_file_new, log_file_old, build_logs_dir_path, build_dir_path})
+    return #log_files == 2
 end
 
 XvimTests:run_tests()
