@@ -1,9 +1,11 @@
 require("xvim_vim_ui")
 require("xvim")
 
+---@TODO - create enum out of in in main module
 local build_arg = "Build"
 local run_arg = "Run"
 local show_logs = "ShowLogs"
+local clean_logs = "CleanLogs"
 
 ---@MARK - Environment
 
@@ -21,7 +23,7 @@ local vim_environment = {
 ---@MARK - Command helpers
 
 local function completion(_, _, _)
-    return { build_arg, run_arg, show_logs }
+    return { build_arg, run_arg, show_logs, clean_logs }
 end
 
 local function xvim_wrapper(args)

@@ -284,6 +284,14 @@ function ShowLogs(environment)
     environment.show_logs(logs)
 end
 
+function CleanLogs()
+    local logs = GetLogFilesPaths()
+
+    for _, log in pairs(logs) do
+        FM.delete_file(log)
+    end
+end
+
 ---@param config config
 function Run(config)
     print("Run")
@@ -333,5 +341,7 @@ function Xvim(cmd, environment)
         Run(settings)
     elseif cmd.args == "ShowLogs" then
         ShowLogs(environment)
+    elseif cmd.args == "CleanLogs" then
+        CleanLogs()
     end
 end
